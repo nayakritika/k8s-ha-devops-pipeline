@@ -1,0 +1,93 @@
+---
+- name: Ensure kubeadm artifact dir exists
+  file:
+    path: "{{ kubeadm_artifact_dir }}"
+    state: directory
+    mode: '0750'
+    owner: root
+    group: root
+
+- name: create kubeadm config for init (with systemd cgroup driver and CRI endpoint)
+  ansible.builtin.copy:
+    dest: /root/kubeadm-init-config.yaml
+    content: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: "v{{ kube_version | regex_replace('-.*', '') }}"
+      controlPlaneEndpoint: "{{ control_plane_endpoint }}"
+      apiServer:
+        certSANs:
+          - "{{ control_plane_endpoint | default('') | split(':') | first }}"
+          - 10.13.37.11
+          - 10.13.37.21
+          - 10.13.37.31
+      networking:
+        podSubnet: "{{ pod_network_cidr }}"
+      ---
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+  args:
+    force: yes
+
+- name: init the control plane (idempotent)
+  command: >
+    kubeadm init --config=/root/kubeadm-init-config.yaml --upload-certs --ignore-preflight-errors=NumCPU
+  args:
+    creates: /etc/kubernetes/admin.conf
+  register: kubeadm_init
+  changed_when: kubeadm_init.rc == 0
+
+- name: create .kube dir for ubuntu user
+  file:
+    path: /home/{{ ansible_user | default('ubuntu') }}/.kube
+    state: directory
+    owner: "{{ ansible_user | default('ubuntu') }}"
+    mode: '0700'
+
+- name: copy admin.conf to ubuntu kube config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/{{ ansible_user | default('ubuntu') }}/.kube/config
+    owner: "{{ ansible_user | default('ubuntu') }}"
+    mode: '0644'
+    remote_src: yes
+    force: true
+
+- name: create worker join script (idempotent)
+  shell: kubeadm token create --print-join-command > {{ kubeadm_artifact_dir }}/kubeadm_join_worker.sh
+  args:
+    creates: "{{ kubeadm_artifact_dir }}/kubeadm_join_worker.sh"
+  changed_when: false
+
+- name: create base control-plane join script (idempotent)
+  shell: kubeadm token create --print-join-command > {{ kubeadm_artifact_dir }}/kubeadm_join_controlplane_base.sh
+  args:
+    creates: "{{ kubeadm_artifact_dir }}/kubeadm_join_controlplane_base.sh"
+  changed_when: false
+
+- name: upload control-plane certs and capture cert key (idempotent)
+  shell: kubeadm init phase upload-certs --upload-certs 2>/dev/null | tail -n 1 > {{ kubeadm_artifact_dir }}/kubeadm_cert_key.txt
+  args:
+    creates: "{{ kubeadm_artifact_dir }}/kubeadm_cert_key.txt"
+  changed_when: false
+
+- name: build final control-plane join script (idempotent)
+  shell: |
+    set -e
+    base="$(cat {{ kubeadm_artifact_dir }}/kubeadm_join_controlplane_base.sh)"
+    key="$(cat {{ kubeadm_artifact_dir }}/kubeadm_cert_key.txt)"
+    echo "$base --control-plane --certificate-key $key" > {{ kubeadm_artifact_dir }}/kubeadm_join_controlplane.sh
+    chmod 0700 {{ kubeadm_artifact_dir }}/kubeadm_join_controlplane.sh
+  args:
+    creates: "{{ kubeadm_artifact_dir }}/kubeadm_join_controlplane.sh"
+  changed_when: false
+
+- name: ensure artifacts have secure perms
+  file:
+    path: "{{ kubeadm_artifact_dir }}"
+    recurse: yes
+    owner: root
+    group: root
+    mode: '0750'

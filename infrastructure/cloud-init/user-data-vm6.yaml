@@ -1,0 +1,17 @@
+#cloud-config
+hostname: VM6
+
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: users, admin
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAUYyc1tX9RLnr5vXk3gYSiCM3Jz7ugAUZUN98h5a5No"
+      - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDWW3n2Wyxeb6Vtl/K7RKh0WrnFMQxfarWeSWn5rr0uNe56Z0152cTskUg/MuhujpJcfZvBMKXJ9T3sz0GYpkssM2SlDWPicBXr8H9A+Owrzx24xEIeRHP1X9Ygp9qr8gGQLhcbkJAnBY+/4qmNbIOk9McRJnJt4H/kc8TOJUsGzG1S3q5JStd9n5zJrCU+Ki+sjeKpoYzdaOPP7Q5uTWZ1f0oF75dNcfN1DZIVWzGn7oWiwZBtCsL+RsoKs9wUYqNsmxXOtvL/f+jwa84PAm9RqS98I0jL/ak5YW6SNI3/KSQQeCGtpN/MQLaU04O1Ky0BCQ7EYNqBqT+rjuE1X5aeWFT8oJbqq63uOhn6kN2dG2K7vqEC1QemT+6zXGpRWoK9AmnjV9nKtlCFkxbsN+/+3kCeNGbVej6xA67XCm6zHaC6N3MRz0AVdHbH83XkQVlZi7Am1M16Bt9Vr8Lw3JsRfv3JIFWZs31LtkDHlnTJDYliJngvlBfedAp7otm4Pj0="
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMgzMmL1v5UOKsAIG33AYxxQWVvk+kHg2UbPkl0Xpqpn"
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILpWMrUaDEuouAMRyct13jTGw4AImL4zm3jv/tIJS05o"
+
+ssh_pwauth: false
+disable_root: true

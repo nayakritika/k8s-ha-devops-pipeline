@@ -1,0 +1,13 @@
+---
+- name: Ensure keepalived is installed
+  ansible.builtin.package:
+    name: "keepalived"
+    state: present
+  become: true
+- name: Deploy keepalived configuration from template
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: "/etc/keepalived/keepalived.conf"
+    backup: yes
+  become: true
+  notify: restart keepalived

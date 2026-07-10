@@ -1,0 +1,5 @@
+- hosts: "{{ groups['control_plane'][0] | default('') }}"
+  become: true
+
+  roles:
+    - deploy_metallb

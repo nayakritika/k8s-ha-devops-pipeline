@@ -1,0 +1,18 @@
+---
+- name: Create or update HPAs for the core services
+  ansible.builtin.command: >
+    kubectl autoscale deployment {{ item }}
+    --kubeconfig=/etc/kubernetes/admin.conf
+    --cpu-percent=70
+    --min=2
+    --max=10
+  loop:
+    - frontend
+    - productcatalogservice
+    - recommendationservice
+    - checkoutservice
+    - shippingservice
+    - adservice
+    - emailservice
+    - paymentservice
+    - currencyservice

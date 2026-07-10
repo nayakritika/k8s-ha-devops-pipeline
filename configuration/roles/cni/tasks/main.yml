@@ -1,0 +1,41 @@
+# roles/cni/tasks/main.yml
+---
+- name: Check if Calico is already installed
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Check for the Calico DaemonSet (standard name)
+    kubectl --kubeconfig /etc/kubernetes/admin.conf get ds -n kube-system | grep -q "calico-node"
+  args:
+    executable: /bin/bash
+  register: cni_installed_check
+  failed_when: cni_installed_check.rc > 1
+  changed_when: false
+
+- name: Download standard Calico Manifest
+  when: cni_installed_check.rc != 0
+  ansible.builtin.get_url:
+    # This is the standard Calico manifest for non-operator installation
+    url: https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
+    dest: /tmp/calico.yaml
+    mode: '0644'
+
+- name: Apply Calico manifests
+  when: cni_installed_check.rc != 0
+  ansible.builtin.shell: |
+    # Apply the single standard Calico file
+    kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /tmp/calico.yaml
+  args:
+    executable: /bin/bash
+  register: calico_apply_result
+  changed_when: calico_apply_result.rc == 0
+
+- name: Wait for CNI pods to be ready (Calico)
+  when: cni_installed_check.rc != 0
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Wait until all Calico nodes are ready
+    kubectl --kubeconfig /etc/kubernetes/admin.conf \
+      --certificate-authority=/etc/kubernetes/pki/ca.crt \
+      wait --for=condition=Ready pod -l k8s-app=calico-node -n kube-system --timeout=300s
+  args:
+    executable: /bin/bash

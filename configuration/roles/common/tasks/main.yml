@@ -1,0 +1,34 @@
+- name: update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: install basic packages
+  apt:
+    name: [apt-transport-https, ca-certificates, curl, gnupg, lsb-release]
+    state: present
+
+- name: disable swap immediately
+  command: swapoff -a
+
+- name: comment out swap in fstab
+  replace:
+    path: /etc/fstab
+    regexp: '(^.*\sswap\s.*$)'
+    replace: '# \\1'
+    backup: yes
+
+- name: ensure br_netfilter module loaded
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: configure sysctl for Kubernetes
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop:
+    - { name: "net.bridge.bridge-nf-call-iptables", value: 1 }
+    - { name: "net.ipv4.ip_forward", value: 1 }

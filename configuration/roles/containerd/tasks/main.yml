@@ -1,0 +1,91 @@
+- name: install prerequisites for containerd
+  apt:
+    name: [software-properties-common]
+    state: present
+    update_cache: yes
+  become: true
+
+- name: add docker apt key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+  become: true
+
+- name: add docker apt repo
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+    state: present
+  become: true
+
+- name: install containerd
+  apt:
+    name: containerd
+    state: present
+    update_cache: yes
+  become: true
+
+- name: ensure /etc/containerd exists
+  file:
+    path: /etc/containerd
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Check if /etc/containerd/config.toml exists
+  stat:
+    path: /etc/containerd/config.toml
+  register: cfg_stat
+  become: true
+
+- name: Ensure backup directory for containerd exists
+  file:
+    path: /etc/containerd/ansible-backups
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Backup existing config if present
+  copy:
+    src: /etc/containerd/config.toml
+    dest: /etc/containerd/ansible-backups/config.toml.bak-{{ ansible_date_time.epoch }}
+    remote_src: yes
+  when: cfg_stat.stat.exists
+  become: true
+
+- name: Deploy containerd config from template
+  template:
+    src: config.toml.j2
+    dest: /etc/containerd/config.toml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart containerd
+  become: true
+
+- name: Ensure containerd service is enabled and started
+  systemd:
+    name: containerd
+    enabled: yes
+    state: started
+  become: true
+
+- name: Wait for containerd socket to appear
+  wait_for:
+    path: /run/containerd/containerd.sock
+    state: present
+    timeout: 30
+  become: true
+
+- name: Wait until crictl reports containerd healthy
+  command: crictl --runtime-endpoint unix:///run/containerd/containerd.sock info
+  register: crictl_check
+  retries: 6
+  delay: 3
+  until: crictl_check.rc == 0
+  failed_when: false
+  changed_when: false
+  become: true

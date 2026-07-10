@@ -1,0 +1,42 @@
+NAME                                     READY   STATUS             RESTARTS         AGE     IP               NODE   NOMINATED NODE   READINESS GATES
+adservice-b4856c769-pzng7                1/1     Running            0                6h43m   10.244.212.67    vm11   <none>           <none>
+adservice-b4856c769-v44cc                1/1     Running            0                6h42m   10.244.185.196   vm2    <none>           <none>
+cartservice-5784f94fb6-qsdtn             1/1     Running            0                6h43m   10.244.90.1      vm7    <none>           <none>
+cartservice-5784f94fb6-w6b6h             1/1     Running            0                5h33m   10.244.135.3     vm6    <none>           <none>
+checkoutservice-56c5cffd57-cch7n         1/1     Running            0                6h42m   10.244.90.3      vm7    <none>           <none>
+checkoutservice-56c5cffd57-clszm         1/1     Running            0                6h43m   10.244.185.193   vm2    <none>           <none>
+currencyservice-66c885779c-4gllc         1/1     Running            14 (4m52s ago)   73m     10.244.90.19     vm7    <none>           <none>
+currencyservice-66c885779c-9f8vx         1/1     Running            1 (3m26s ago)    11m     10.244.90.21     vm7    <none>           <none>
+currencyservice-66c885779c-fd8tv         1/1     Running            1 (61s ago)      9m38s   10.244.64.206    vm4    <none>           <none>
+currencyservice-66c885779c-hdh88         1/1     Running            1 (12m ago)      18m     10.244.212.73    vm11   <none>           <none>
+currencyservice-66c885779c-mtgrd         1/1     Running            2 (2m4s ago)     18m     10.244.185.202   vm2    <none>           <none>
+currencyservice-66c885779c-n8t7v         1/1     Running            12 (4m17s ago)   60m     10.244.67.77     vm9    <none>           <none>
+currencyservice-66c885779c-ncthb         1/1     Running            2 (92s ago)      9m38s   10.244.67.83     vm9    <none>           <none>
+currencyservice-66c885779c-pvw77         1/1     Running            14 (10m ago)     73m     10.244.135.30    vm6    <none>           <none>
+currencyservice-66c885779c-wkfcr         1/1     Running            1 (2m6s ago)     11m     10.244.167.74    vm10   <none>           <none>
+currencyservice-66c885779c-x6bxz         1/1     Running            8 (117s ago)     60m     10.244.64.204    vm4    <none>           <none>
+emailservice-bc487bdb7-tvf9f             1/1     Running            0                6h43m   10.244.185.194   vm2    <none>           <none>
+emailservice-bc487bdb7-wgndb             1/1     Running            0                6h42m   10.244.135.2     vm6    <none>           <none>
+frontend-5965c589c8-75z68                1/1     Running            0                17m     10.244.64.205    vm4    <none>           <none>
+frontend-5965c589c8-9sjwt                1/1     Running            0                60m     10.244.135.33    vm6    <none>           <none>
+frontend-5965c589c8-bh9nf                1/1     Running            7 (3h52m ago)    6h43m   10.244.64.194    vm4    <none>           <none>
+frontend-5965c589c8-c795r                1/1     Running            0                19m     10.244.212.72    vm11   <none>           <none>
+frontend-5965c589c8-g2ssb                1/1     Running            2 (3h48m ago)    3h50m   10.244.167.70    vm10   <none>           <none>
+frontend-5965c589c8-m72g9                1/1     Running            4 (2m8s ago)     3h50m   10.244.67.76     vm9    <none>           <none>
+frontend-5965c589c8-mvm8b                1/1     Running            0                19m     10.244.185.200   vm2    <none>           <none>
+frontend-5965c589c8-qnczf                1/1     Running            0                19m     10.244.67.81     vm9    <none>           <none>
+frontend-5965c589c8-wln4s                1/1     Running            0                60m     10.244.212.70    vm11   <none>           <none>
+frontend-5965c589c8-zvtz4                1/1     Running            7 (3h53m ago)    6h42m   10.244.90.2      vm7    <none>           <none>
+loadgenerator-5477fc5d68-kqvhn           1/1     Running            1 (2m46s ago)    5m29s   10.244.135.36    vm6    <none>           <none>
+paymentservice-656fb48df5-4jhll          1/1     Running            1 (78m ago)      6h43m   10.244.212.66    vm11   <none>           <none>
+paymentservice-656fb48df5-hp2qq          1/1     Running            1 (69m ago)      6h42m   10.244.167.69    vm10   <none>           <none>
+productcatalogservice-5db55dcfbc-292fp   1/1     Running            0                11m     10.244.135.35    vm6    <none>           <none>
+productcatalogservice-5db55dcfbc-5d9w2   1/1     Running            0                18m     10.244.185.201   vm2    <none>           <none>
+productcatalogservice-5db55dcfbc-7tprw   1/1     Running            0                6h42m   10.244.167.68    vm10   <none>           <none>
+productcatalogservice-5db55dcfbc-fstwg   1/1     Running            0                6h43m   10.244.64.193    vm4    <none>           <none>
+recommendationservice-7f8c5fcbff-bhxm4   0/1     CrashLoopBackOff   33 (4m25s ago)   6h42m   10.244.64.195    vm4    <none>           <none>
+recommendationservice-7f8c5fcbff-cg7sx   0/1     CrashLoopBackOff   13 (4m46s ago)   59m     10.244.135.34    vm6    <none>           <none>
+redis-cart-c4fc658fb-6nmz2               1/1     Running            0                6h43m   10.244.167.66    vm10   <none>           <none>
+redis-cart-c4fc658fb-btmlv               1/1     Running            0                5h33m   10.244.64.197    vm4    <none>           <none>
+shippingservice-7fdc84f79-9kxcz          1/1     Running            0                6h42m   10.244.64.196    vm4    <none>           <none>
+shippingservice-7fdc84f79-p6pxn          1/1     Running            0                6h43m   10.244.167.65    vm10   <none>           <none>

@@ -1,0 +1,11 @@
+---
+- name: Download metrics-server manifest
+  ansible.builtin.template:
+    src: metrics-server.j2
+    dest: "/tmp/metrics-server.yaml"
+
+- name: Apply metrics-server manifest
+  command: >
+    kubectl apply -f /tmp/metrics-server.yaml
+    --kubeconfig=/etc/kubernetes/admin.conf
+  become: yes

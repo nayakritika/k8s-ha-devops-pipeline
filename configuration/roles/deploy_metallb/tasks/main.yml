@@ -1,0 +1,57 @@
+---
+- name: Download MetalLB native manifest (CRDs + controllers)
+  ansible.builtin.get_url:
+    url: "{{ metallb_native_url }}"
+    dest: /tmp/metallb-native.yaml
+    mode: "0644"
+
+- name: Apply MetalLB native manifest
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/metallb-native.yaml
+    --kubeconfig=/etc/kubernetes/admin.conf
+  become: true
+
+- name: Wait for MetalLB controller (and webhook) to be ready
+  ansible.builtin.command: >
+    kubectl rollout status deployment/controller
+    -n metallb-system
+    --timeout=120s
+    --kubeconfig=/etc/kubernetes/admin.conf
+  register: metallb_rollout
+  retries: 5
+  delay: 5
+  until: metallb_rollout.rc == 0
+  become: true
+
+- name: Render MetalLB IPAddressPool manifest
+  ansible.builtin.template:
+    src: metallb-config.j2
+    dest: /tmp/metallb-config.yaml
+
+- name: Render MetalLB L2Advertisement manifest
+  ansible.builtin.template:
+    src: metallb-advertisment.j2
+    dest: /tmp/metallb-advertisment.yaml
+
+- name: Apply MetalLB IPAddressPool
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/metallb-config.yaml
+    --kubeconfig=/etc/kubernetes/admin.conf
+  become: true
+
+- name: Apply MetalLB L2Advertisement
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/metallb-advertisment.yaml
+    --kubeconfig=/etc/kubernetes/admin.conf
+  become: true
+
+- name: Render static frontend-external Service
+  ansible.builtin.template:
+    src: frontend-external-lb.j2
+    dest: /tmp/frontend-external-lb.yaml
+
+- name: Apply static frontend-external Service
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/frontend-external-lb.yaml
+    --kubeconfig=/etc/kubernetes/admin.conf
+  become: true

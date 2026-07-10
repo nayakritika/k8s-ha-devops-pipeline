@@ -1,0 +1,199 @@
+# kubeadm_join/tasks/main.yml
+---
+- name: Determine node role
+  set_fact:
+    node_role: "{{ 'control_plane' if (inventory_hostname in groups['control_plane']) else 'worker' }}"
+
+- name: Choose join script name (on first control-plane)
+  set_fact:
+    join_script_path: >-
+      {{ (inventory_hostname in groups['control_plane'] and inventory_hostname != groups['control_plane'][0]) 
+         | ternary(kubeadm_artifact_dir ~ '/kubeadm_join_controlplane.sh', kubeadm_artifact_dir ~ '/kubeadm_join_worker.sh') 
+         | trim }}
+
+- name: Generate base worker join command on first control-plane (cp1)
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    # Create a non-control-plane join command and save it to the worker script file
+    kubeadm token create --print-join-command --ttl 24h > {{ kubeadm_artifact_dir }}/kubeadm_join_worker.sh || true
+  args:
+    executable: /bin/bash
+  run_once: true
+
+- name: Read join script from first control-plane (delegate)
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  slurp:
+    src: "{{ join_script_path | trim }}"
+  register: join_script_slurped
+  changed_when: false
+
+- name: Extract join script content (Base64 decode)
+  set_fact:
+    join_script_content: "{{ join_script_slurped.content | b64decode }}"
+
+- name: Show short debug of join script (first line) - remove in production
+  debug:
+    msg: "{{ (join_script_content | default('')) | regex_replace('\\r\\n','\\n') | split('\\n') | first }}"
+  when: join_script_content is defined and join_script_content | default('') != ''
+
+# write the script to the first control-plane (delegate) so token checks / creation operate there
+- name: Write join script to temporary file on first control-plane (delegate)
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  copy:
+    content: "{{ join_script_content | default('') }}"
+    dest: /tmp/kubeadm_join.sh
+    mode: '0755'
+  when: join_script_content | default('') != ''
+  register: wrote_join_on_delegate
+
+# also write the script to the target node so we can execute it locally
+- name: Write join script to target node
+  become: yes
+  copy:
+    content: "{{ join_script_content | default('') }}"
+    dest: /tmp/kubeadm_join.sh
+    mode: '0755'
+  when: join_script_content | default('') != ''
+
+# sanity: ensure script exists on the target before attempting join
+- name: Ensure join script exists on target
+  stat:
+    path: /tmp/kubeadm_join.sh
+  register: join_sh_stat
+
+- name: Fail if join script missing on target
+  fail:
+    msg: "Join script missing on {{ inventory_hostname }} (expected /tmp/kubeadm_join.sh)."
+  when: not join_sh_stat.stat.exists
+
+# Check token validity on the first control-plane 
+- name: Check token validity (on first control-plane)
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    set -euo pipefail
+    token_full=$(grep -oP -- '--token\s+\K\S+' /tmp/kubeadm_join.sh 2>/dev/null || true)
+    if [ -z "$token_full" ]; then
+      echo "NO_TOKEN"
+      exit 0
+    fi
+    token_id=${token_full%%.*}
+    # kubeadm token list prints tokens in the first column; check for token id
+    if kubeadm token list 2>/dev/null | awk 'NR>1{print $1}' | grep -q "^${token_id}$"; then
+      echo "VALID"
+    else
+      echo "INVALID"
+    fi
+  args:
+    executable: /bin/bash
+  register: token_check
+  changed_when: false
+
+# Generate fresh join command on the first control-plane if token missing/invalid
+- name: Generate fresh join command (on first control-plane) if token missing/invalid
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    set -euo pipefail
+    kubeadm token create --print-join-command --ttl 24h
+  args:
+    executable: /bin/bash
+  register: new_join
+  when: token_check.stdout != "VALID"
+
+# Update join script on delegate with fresh token+hash if we generated a new join
+- name: Update join script on delegate with fresh token+hash
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    set -euo pipefail
+    NEW_JOIN="{{ new_join.stdout | default('') | replace('\n', ' ') }}"
+    NEW_TOKEN=$(echo "$NEW_JOIN" | grep -oP -- '--token\s+\K\S+' || true)
+    NEW_HASH=$(echo "$NEW_JOIN" | grep -oP -- '--discovery-token-ca-cert-hash\s+\K\S+' || true)
+
+    if [ -n "$NEW_TOKEN" ]; then
+      sed -i -E "s/--token[[:space:]]+[A-Za-z0-9._-]+/--token $NEW_TOKEN/g" /tmp/kubeadm_join.sh || true
+    fi
+
+    if [ -n "$NEW_HASH" ]; then
+      sed -i -E "s/--discovery-token-ca-cert-hash[[:space:]]+sha256:[0-9a-f]+/--discovery-token-ca-cert-hash $NEW_HASH/g" /tmp/kubeadm_join.sh || true
+    fi
+
+    echo "updated_token=${NEW_TOKEN}"
+    echo "updated_hash=${NEW_HASH}"
+  args:
+    executable: /bin/bash
+  when: token_check.stdout != "VALID"
+
+- name: Ensure certificate key exists and capture it (on first control-plane) when token was invalid
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    set -euo pipefail
+    kubeadm init phase upload-certs --upload-certs 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  register: upload_certs_result
+  when: token_check.stdout != "VALID"
+
+- name: Set new_certkey fact (extracted) when token was invalid
+  set_fact:
+    new_certkey: >-
+      {{ (upload_certs_result.stdout | default('')) 
+          | regex_findall('([A-Za-z0-9]{64})') 
+          | default(['']) 
+          | first }}
+  when: token_check.stdout != "VALID"
+
+- name: Replace --certificate-key in delegate join script with new certkey when token was invalid
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  shell: |
+    set -euo pipefail
+    NEW_KEY='{{ new_certkey | default("") }}'
+    if [ -n "$NEW_KEY" ]; then
+      sed -i -E "s/--certificate-key[[:space:]]+[A-Za-z0-9]+/--certificate-key $NEW_KEY/g" /tmp/kubeadm_join.sh || true
+      echo "replaced"
+    else
+      echo "no_key_found"
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: replaced_certkey
+  changed_when: "'replaced' in replaced_certkey.stdout"
+  when: token_check.stdout != "VALID"
+
+# --- Slurp the (possibly) updated join script from the first control-plane and write it to the target ---
+- name: Slurp updated join script from first control-plane (delegate)
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become: yes
+  slurp:
+    src: /tmp/kubeadm_join.sh
+  register: slurped_updated_join
+  changed_when: false
+
+- name: Write the updated join script to the target node
+  become: yes
+  copy:
+    content: "{{ slurped_updated_join.content | b64decode }}"
+    dest: /tmp/kubeadm_join.sh
+    mode: '0755'
+  when: slurped_updated_join is defined and slurped_updated_join.content is defined
+
+# Run the join script on the target node (pass args to the script safely)
+- name: Run kubeadm join (control-plane or worker) on this host
+  become: yes
+  shell: >
+    /tmp/kubeadm_join.sh --cri-socket {{ containerd_socket | default('/run/containerd/containerd.sock') }} --ignore-preflight-errors=NumCPU
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  register: join_result
+  failed_when: >
+    (join_result.rc != 0)
+    and
+    ("already" not in ((join_result.stdout|default('')) + (join_result.stderr|default(''))))
+  no_log: true

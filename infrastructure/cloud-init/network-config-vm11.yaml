@@ -1,0 +1,10 @@
+version: 2
+ethernets:
+  ens3:
+    addresses:
+      - 10.13.37.33/24
+    gateway4: 10.13.37.3
+    nameservers:
+      addresses:
+        - 8.8.8.8
+        - 1.1.1.1

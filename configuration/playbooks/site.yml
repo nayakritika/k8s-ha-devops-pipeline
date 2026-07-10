@@ -1,0 +1,55 @@
+- hosts: k8s
+  become: yes
+  roles:
+    - common          # OS prep: swapoff, sysctl, modules
+    - containerd      # container runtime (must be before kube packages)
+    - kube            # installs kubeadm, kubelet, kubectl
+
+- hosts: k8s
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Reset Kubernetes installation on all nodes
+      ansible.builtin.command: kubeadm reset -f
+      ignore_errors: true
+
+    - name: Run kubeadm init only on the first control-plane host
+      # this runs the role only on the first host in the control_plane group
+      include_role:
+        name: kubeadm_init
+      when: inventory_hostname == groups['control_plane'][0]
+
+# Join remaining control-plane nodes
+- hosts: control_plane
+  serial: 1
+  become: yes
+  tasks:
+    - name: Join other control-plane nodes (skip first)
+      include_role:
+        name: kubeadm_join
+      when: inventory_hostname != groups['control_plane'][0]
+
+# Join worker nodes
+- hosts: workers
+  become: yes
+  roles:
+    - kubeadm_join
+
+- name: Install Network Plugin (CNI)
+  hosts: control_plane[0] # Run only on the first node
+  gather_facts: no
+  roles:
+    - cni
+
+# Wait for API on first control-plane and check nodes (no become for kubectl cmd)
+- hosts: "{{ groups['control_plane'][0] | default('') }}"
+  gather_facts: false
+  tasks:
+    - name: wait for kube API to be ready
+      shell: |
+        kubectl --kubeconfig=/home/ubuntu/.kube/config get nodes
+      register: kubectl_get
+      retries: 10
+      delay: 6
+      until: kubectl_get.rc == 0
+      become: false

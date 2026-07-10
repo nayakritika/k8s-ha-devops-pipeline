@@ -1,0 +1,27 @@
+---
+- name: Ensure haproxy is installed
+  ansible.builtin.package:
+    name: "haproxy"
+    state: present
+  become: true
+- name: Ensure k8s haproxy block is present
+  ansible.builtin.blockinfile:
+    path: /etc/haproxy/haproxy.cfg
+    marker: "# {mark} K8S LOADBALENCER"
+    block: |
+      frontend k8s-frontend
+          bind *:{{ control_plane_port }}
+          mode tcp
+          option tcplog
+          default_backend k8s-backend
+
+      backend k8s-backend
+          mode tcp
+          option tcp-check
+          balance roundrobin
+          default-server inter 10s downinter 5s
+      {% for host in groups['control_plane'] %}
+          server {{ host }} {{ hostvars[host].ansible_host }}:{{ control_plane_port }} check
+      {% endfor %}
+  become: true
+  notify: restart haproxy

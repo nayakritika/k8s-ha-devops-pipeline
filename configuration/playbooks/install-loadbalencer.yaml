@@ -1,0 +1,7 @@
+- name: Install loadbalencer
+  hosts: lb
+  become: true
+
+  roles:
+    - haproxy
+    - keepalived

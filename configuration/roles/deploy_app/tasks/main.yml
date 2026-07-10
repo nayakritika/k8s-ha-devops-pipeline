@@ -1,0 +1,12 @@
+---
+- name: Copy release manifests
+  copy:
+    src: "{{ deploy_path }}"
+    dest: /tmp/kubernetes-manifests.yml
+    mode: '0644'
+
+- name: Apply release manifests
+  command: >
+    kubectl apply -f /tmp/kubernetes-manifests.yml
+    --kubeconfig=/etc/kubernetes/admin.conf
+    

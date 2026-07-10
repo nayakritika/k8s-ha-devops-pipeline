@@ -1,0 +1,77 @@
+---
+- name: ensure keyrings dir exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Remove old Kubernetes keyring (force refresh)
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    state: absent
+
+- name: Download Kubernetes signing key (Release.key)
+  ansible.builtin.get_url:
+    url: "{{ 'https://pkgs.k8s.io/core:/stable:/v' ~ kube_repo_version ~ '/deb/Release.key' }}"
+    dest: /tmp/kubernetes-apt-key.key
+    mode: '0644'
+    force: yes
+
+- name: Dearmor Kubernetes key into legacy trusted keyring
+  ansible.builtin.shell: |
+    gpg --dearmor < /tmp/kubernetes-apt-key.key > /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+  args:
+    creates: /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+  become: yes
+
+- name: Ensure Kubernetes apt repository exists
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    content: |
+      deb {{ 'https://pkgs.k8s.io/core:/stable:/v' ~ kube_repo_version ~ '/deb' }} /
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+
+- name: Upgrade APT package and update cache
+  ansible.builtin.apt:
+    name: apt
+    state: latest
+    update_cache: yes
+  become: yes
+
+- name: Force APT cache update
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 0
+  become: yes
+
+- name: Unhold kube packages (allow apt to change versions)
+  ansible.builtin.shell: |
+    apt-mark unhold kubeadm kubelet kubectl || true
+  register: unhold_output
+  changed_when: "'unhold' in unhold_output.stdout"
+  failed_when: false
+  become: yes
+
+- name: Install kube packages (specific pinned version)
+  ansible.builtin.apt:
+    name:
+      - kubeadm={{ kube_version }}
+      - kubelet={{ kube_version }}
+      - kubectl={{ kube_version }}
+    state: present
+    update_cache: yes
+    allow_downgrade: yes
+  become: yes
+
+- name: Hold kube packages again
+  ansible.builtin.shell: |
+    apt-mark hold kubeadm kubelet kubectl || true
+  register: hold_output
+  changed_when: "'hold' in hold_output.stdout"
+  failed_when: false
+  become: yes
